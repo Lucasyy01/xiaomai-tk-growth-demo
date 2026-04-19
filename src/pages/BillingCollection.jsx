@@ -59,6 +59,13 @@ function BillingDetailDrawer({ detail, onClose }) {
           </div>
         ) : null}
 
+        {detail.nextStep ? (
+          <div className="drawer-block drawer-block--next billing-drawer__priority">
+            <span>下一步建议</span>
+            <p>{detail.nextStep}</p>
+          </div>
+        ) : null}
+
         {detail.facts?.length ? (
           <dl className="task-drawer__meta billing-drawer__meta">
             {detail.facts.map((fact) => (
@@ -74,13 +81,6 @@ function BillingDetailDrawer({ detail, onClose }) {
           <span>当前说明</span>
           <p>{detail.body}</p>
         </div>
-
-        {detail.nextStep ? (
-          <div className="drawer-block drawer-block--next">
-            <span>下一步建议</span>
-            <p>{detail.nextStep}</p>
-          </div>
-        ) : null}
       </aside>
     </div>
   );
@@ -225,6 +225,10 @@ export default function BillingCollection({ page, onNavigate }) {
           <StatusBadge status={autoDebit.lastResult.status} tone="danger" />
           <strong>{autoDebit.lastResult.amount}</strong>
           <span>{autoDebit.blockingReason}</span>
+          <div className="billing-hero__decision">
+            <span>当前阻塞</span>
+            <p>逾期未补款前，不建议新增放量预算。</p>
+          </div>
           <button className="primary-action" type="button" onClick={() => openAutoDebitDetail('result')}>
             查看扣款结果
           </button>
@@ -315,21 +319,24 @@ export default function BillingCollection({ page, onNavigate }) {
               <h3>自动扣款设置</h3>
               <p>{autoDebit.scopeNote}</p>
             </div>
-            <StatusBadge status={autoDebit.authorizationStatus} tone="success" />
+            <div className="billing-auto-debit__badges">
+              <StatusBadge status="平台应收代扣" tone="accent" />
+              <StatusBadge status={autoDebit.authorizationStatus} tone="success" />
+            </div>
           </div>
           <div className="billing-status-grid">
             <button className="billing-status-card" type="button" onClick={() => openAutoDebitDetail('account')}>
-              <span>回款账户平台</span>
+              <span>小麦云回款账户</span>
               <strong>{autoDebit.platform}</strong>
               <StatusBadge status={autoDebit.accountStatus} tone="success" />
             </button>
             <button className="billing-status-card" type="button" onClick={() => openAutoDebitDetail('authorization')}>
-              <span>自动扣款授权</span>
+              <span>项目应收授权</span>
               <strong>{autoDebit.authorizationStatus}</strong>
               <StatusBadge status={autoDebit.authorizationStatus} tone="success" />
             </button>
             <button className="billing-status-card billing-status-card--risk" type="button" onClick={() => openAutoDebitDetail('result')}>
-              <span>最近一次扣款结果</span>
+              <span>项目应收扣款结果</span>
               <strong>{autoDebit.lastResult.status}</strong>
               <StatusBadge status={autoDebit.lastResult.status} tone="danger" />
             </button>
