@@ -9,6 +9,7 @@ import {
   phaseDetails,
   projectSnapshot,
   spendSummary,
+  workorderCommandCenter,
   workorderBlockers,
   workorderLogs,
   workorderOverview,
@@ -26,6 +27,37 @@ function DetailMetric({ label, value }) {
   );
 }
 
+function ActionCard({ action, onNavigate }) {
+  const canNavigate = Boolean(action.target);
+  const Component = canNavigate ? 'button' : 'article';
+
+  return (
+    <Component
+      className={`action-card${canNavigate ? ' action-card--clickable' : ''}`}
+      type={canNavigate ? 'button' : undefined}
+      onClick={canNavigate ? () => onNavigate(action.target) : undefined}
+    >
+      <div className="action-card__top">
+        <div>
+          <span>{action.title}</span>
+          <strong>{action.value}</strong>
+        </div>
+        <StatusBadge status={action.status} />
+      </div>
+      <p>{action.meta}</p>
+      <div className="action-card__next">
+        <span>下一步</span>
+        <p>{action.nextStep}</p>
+      </div>
+      <div className="action-card__footer">
+        <span>{action.owner}</span>
+        <span>{action.due}</span>
+        {action.actionLabel ? <strong>{action.actionLabel}</strong> : null}
+      </div>
+    </Component>
+  );
+}
+
 function SectionHeading({ eyebrow, title, action }) {
   return (
     <div className="section-heading">
@@ -35,6 +67,26 @@ function SectionHeading({ eyebrow, title, action }) {
       </div>
       {action}
     </div>
+  );
+}
+
+function WorkorderPanel({ title, description, status, actionLabel, onClick, children }) {
+  const Component = onClick ? 'button' : 'article';
+
+  return (
+    <Component className={`workorder-panel${onClick ? ' workorder-panel--link' : ''}`} type={onClick ? 'button' : undefined} onClick={onClick}>
+      <div className="workorder-panel__header">
+        <div>
+          <h3>{title}</h3>
+          {description ? <p>{description}</p> : null}
+        </div>
+        <div className="workorder-panel__actions">
+          {status ? <StatusBadge status={status} /> : null}
+          {actionLabel ? <span>{actionLabel}</span> : null}
+        </div>
+      </div>
+      {children}
+    </Component>
   );
 }
 
@@ -56,6 +108,7 @@ function TaskDrawer({ task, onClose }) {
 
         <div className="task-drawer__status">
           <StatusBadge status={task.status} />
+          <StatusBadge status={task.priority} tone={task.priority === 'P0' ? 'danger' : 'accent'} />
           <span>{task.risk}</span>
         </div>
 
@@ -67,6 +120,10 @@ function TaskDrawer({ task, onClose }) {
           <div>
             <dt>截止时间</dt>
             <dd>{task.deadline}</dd>
+          </div>
+          <div>
+            <dt>最近更新</dt>
+            <dd>{task.lastUpdate}</dd>
           </div>
           <div>
             <dt>依赖项</dt>
@@ -97,6 +154,7 @@ export default function ProjectWorkorder({ page, onNavigate }) {
 
   const currentStageIndex = phaseDetails.findIndex((phase) => phase.stage === projectSnapshot.currentStage);
   const riskTaskCount = executionTasks.filter((task) => riskTaskStatuses.includes(task.status)).length;
+  const primaryAction = workorderCommandCenter.primaryAction;
 
   return (
     <section className="page workorder-page">
@@ -113,11 +171,22 @@ export default function ProjectWorkorder({ page, onNavigate }) {
         </div>
       </header>
 
-      <article className="central-hero workorder-hero">
+      <article className="central-hero workorder-hero workorder-command">
         <div className="workorder-hero__main">
-          <div className="eyebrow">项目总览</div>
+          <div className="command-kicker">
+            <div className="eyebrow">项目总览 / 交付中枢</div>
+            <StatusBadge status={projectSnapshot.healthStatus} tone="warning" />
+          </div>
           <h2>{projectSnapshot.projectName}</h2>
-          <p>{projectSnapshot.nextAction}</p>
+          <p>{projectSnapshot.commandFocus}</p>
+          <div className="primary-next-action">
+            <div>
+              <span>{primaryAction.title}</span>
+              <strong>{primaryAction.value}</strong>
+              <p>{primaryAction.meta}</p>
+            </div>
+            <StatusBadge status={primaryAction.status} />
+          </div>
           <div className="hero-facts">
             <DetailMetric label="客户" value={projectSnapshot.clientName} />
             <DetailMetric label="项目类型" value={projectSnapshot.projectType} />
@@ -127,13 +196,19 @@ export default function ProjectWorkorder({ page, onNavigate }) {
         </div>
         <div className="workorder-hero__side">
           <StatusBadge status={projectSnapshot.currentStage} tone="accent" />
-          <strong>下一步最关键</strong>
-          <span>授权确认后进入小预算测试</span>
+          <strong>{projectSnapshot.healthStatus}</strong>
+          <span>{projectSnapshot.healthReason}</span>
           <button className="primary-action" type="button" onClick={() => onNavigate('customer-portal')}>
             客户视角预览
           </button>
         </div>
       </article>
+
+      <section className="section-grid section-grid--four command-metric-grid" aria-label="项目中枢核心指标">
+        {workorderCommandCenter.metrics.map((metric) => (
+          <SummaryCard key={metric.title} {...metric} isCentral={metric.status === '已阻塞'} />
+        ))}
+      </section>
 
       <section className="workorder-section">
         <SectionHeading
@@ -173,6 +248,14 @@ export default function ProjectWorkorder({ page, onNavigate }) {
             <p>{selectedStageDetail.description}</p>
           </div>
           <div>
+            <span>进入条件</span>
+            <p>{selectedStageDetail.entryCondition}</p>
+          </div>
+          <div>
+            <span>风险关注</span>
+            <p>{selectedStageDetail.riskFocus}</p>
+          </div>
+          <div className="stage-advice__next">
             <span>下一步动作建议</span>
             <p>{selectedStageDetail.nextAction}</p>
           </div>
@@ -181,16 +264,9 @@ export default function ProjectWorkorder({ page, onNavigate }) {
 
       <section className="workorder-section">
         <SectionHeading eyebrow="动作中枢" title="现在最该处理的 3 件事" />
-        <div className="section-grid section-grid--three">
+        <div className="action-grid">
           {workorderOverview.nextActions.map((action) => (
-            <SummaryCard
-              key={action.title}
-              title={action.title}
-              value={action.value}
-              status={action.status}
-              meta={action.meta}
-              onClick={action.target ? () => onNavigate(action.target) : undefined}
-            />
+            <ActionCard key={action.title} action={action} onNavigate={onNavigate} />
           ))}
         </div>
       </section>
@@ -224,7 +300,7 @@ export default function ProjectWorkorder({ page, onNavigate }) {
               <button key={task.id} className={`task-card${isRiskTask ? ' task-card--risk' : ''}`} type="button" onClick={() => setSelectedTask(task)}>
                 <div className="task-card__top">
                   <div>
-                    <span>{task.type}</span>
+                    <span>{task.type} / {task.priority}</span>
                     <strong>{task.owner}</strong>
                   </div>
                   <StatusBadge status={task.status} />
@@ -232,6 +308,7 @@ export default function ProjectWorkorder({ page, onNavigate }) {
                 <div className="task-card__body">
                   <span>截止 {task.deadline}</span>
                   <p>{task.risk}</p>
+                  <small>{task.nextStep}</small>
                 </div>
               </button>
             );
@@ -242,74 +319,64 @@ export default function ProjectWorkorder({ page, onNavigate }) {
       <section className="workorder-section">
         <SectionHeading eyebrow="对象摘要" title="达人合作、素材、消耗和账单" />
         <div className="workorder-summary-grid">
-          <article className="workorder-panel">
-            <div className="workorder-panel__header">
-              <div>
-                <h3>达人合作摘要</h3>
-                <p>{creatorSummary.nextAction}</p>
-              </div>
-              <button className="text-action" type="button" onClick={() => onNavigate('creator-assets')}>
-                查看
-              </button>
-            </div>
-            <StatusBadge status={creatorSummary.status} />
+          <WorkorderPanel
+            title="达人合作摘要"
+            description={creatorSummary.nextAction}
+            status={creatorSummary.status}
+            actionLabel="查看达人与素材"
+            onClick={() => onNavigate('creator-assets')}
+          >
             <div className="mini-metric-grid mini-metric-grid--four">
               {creatorSummary.metrics.map((metric) => (
                 <DetailMetric key={metric.label} {...metric} />
               ))}
             </div>
-          </article>
+          </WorkorderPanel>
 
-          <article className="workorder-panel">
-            <div className="workorder-panel__header">
-              <div>
-                <h3>素材资产摘要</h3>
-                <p>{assetSummary.nextAction}</p>
-              </div>
-              <button className="text-action" type="button" onClick={() => onNavigate('creator-assets')}>
-                查看
-              </button>
-            </div>
-            <StatusBadge status={assetSummary.status} />
+          <WorkorderPanel
+            title="素材资产摘要"
+            description={assetSummary.nextAction}
+            status={assetSummary.status}
+            actionLabel="查看素材明细"
+            onClick={() => onNavigate('creator-assets')}
+          >
             <div className="mini-metric-grid mini-metric-grid--three">
               {assetSummary.metrics.map((metric) => (
                 <DetailMetric key={metric.label} {...metric} />
               ))}
             </div>
+            <p className="panel-note">{assetSummary.conversionNote}</p>
             <div className="asset-ladder">
-              {assetSummary.ladder.map((item) => (
-                <span key={item}>{item}</span>
+              {assetSummary.ladder.map((item, index) => (
+                <div className="asset-ladder__step" key={item.label}>
+                  <span>{String(index + 1).padStart(2, '0')}</span>
+                  <strong>{item.label}</strong>
+                  <small>{item.description}</small>
+                </div>
               ))}
             </div>
-          </article>
+          </WorkorderPanel>
 
-          <article className="workorder-panel">
-            <div className="workorder-panel__header">
-              <div>
-                <h3>消耗与占额摘要</h3>
-                <p>只展示项目消耗和授信占额，不做复杂图表。</p>
-              </div>
-              <StatusBadge status={spendSummary.status} tone="success" />
-            </div>
+          <WorkorderPanel title="消耗与占额摘要" description="只展示项目消耗和授信占额，不做复杂图表。" status={spendSummary.status}>
             <div className="mini-metric-grid mini-metric-grid--four">
               <DetailMetric label="今日消耗" value={spendSummary.todaySpend} />
               <DetailMetric label="累计消耗" value={spendSummary.totalSpend} />
               <DetailMetric label="当前占额" value={spendSummary.creditOccupancy} />
               <DetailMetric label="额度预警" value={spendSummary.limitWarning} />
             </div>
-          </article>
-
-          <article className="workorder-panel">
-            <div className="workorder-panel__header">
-              <div>
-                <h3>账单与回款摘要</h3>
-                <p>体现平台应收、已收、待收和自动扣款授权状态。</p>
-              </div>
-              <button className="text-action" type="button" onClick={() => onNavigate('billing-collection')}>
-                查看
-              </button>
+            <div className="quota-rail" style={{ '--usage': spendSummary.usagePercent }}>
+              <span />
             </div>
-            <StatusBadge status={billingSummary.status} />
+            <p className="panel-note">{spendSummary.forecast}</p>
+          </WorkorderPanel>
+
+          <WorkorderPanel
+            title="账单与回款摘要"
+            description="体现平台应收、已收、待收和自动扣款授权状态。"
+            status={billingSummary.status}
+            actionLabel="查看账单"
+            onClick={() => onNavigate('billing-collection')}
+          >
             <div className="mini-metric-grid mini-metric-grid--three">
               <DetailMetric label="应收总额" value={billingSummary.receivable} />
               <DetailMetric label="已收金额" value={billingSummary.received} />
@@ -317,7 +384,8 @@ export default function ProjectWorkorder({ page, onNavigate }) {
               <DetailMetric label="最近扣款" value={billingSummary.lastDeduction} />
               <DetailMetric label="扣款授权" value={billingSummary.autoDebitStatus} />
             </div>
-          </article>
+            <p className="panel-note">{billingSummary.nextCollectionAction}</p>
+          </WorkorderPanel>
         </div>
       </section>
 
