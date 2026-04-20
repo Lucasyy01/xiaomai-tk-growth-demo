@@ -1,319 +1,264 @@
-import { useMemo, useState } from 'react';
-import StatusBadge from '../components/StatusBadge.jsx';
-import SummaryCard from '../components/SummaryCard.jsx';
+import { useState } from 'react';
+import Button from 'antd/es/button';
+import Card from 'antd/es/card';
+import Col from 'antd/es/col';
+import Descriptions from 'antd/es/descriptions';
+import Row from 'antd/es/row';
+import Space from 'antd/es/space';
+import Statistic from 'antd/es/statistic';
+import Table from 'antd/es/table';
+import Tag from 'antd/es/tag';
+import Typography from 'antd/es/typography';
+import { ArrowLeftOutlined, ArrowRightOutlined } from '@ant-design/icons';
 import { launchChecklistDetail } from '../data/mockData.js';
 
-function DetailMetric({ label, value }) {
-  return (
-    <div className="detail-metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
+const { Paragraph, Text, Title } = Typography;
 
-function SectionHeading({ eyebrow, title, action }) {
-  return (
-    <div className="section-heading">
-      <div>
-        {eyebrow ? <div className="eyebrow">{eyebrow}</div> : null}
-        <h2>{title}</h2>
-      </div>
-      {action}
-    </div>
-  );
-}
+const toneMap = {
+  success: 'success',
+  warning: 'warning',
+  danger: 'error',
+  error: 'error',
+  accent: 'processing',
+  processing: 'processing',
+  neutral: 'default',
+};
+
+const rhythm = {
+  page: { gap: 16 },
+  cardBody: { padding: 18 },
+  headerCard: { borderColor: '#dfe5ee' },
+  decisionCard: { height: '100%', borderColor: '#fed7aa', background: '#fffaf2' },
+  customerCard: { height: '100%' },
+  metricCard: { width: '100%', height: '100%', minHeight: 138 },
+  metricBody: { height: '100%', display: 'flex', flexDirection: 'column', gap: 10, padding: 18 },
+  metricTop: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
+  metricMeta: { minHeight: 40, margin: 0 },
+  tableCellStack: { width: '100%', minHeight: 50, justifyContent: 'center' },
+  detailCard: { height: '100%' },
+  detailBody: { minHeight: 136, display: 'grid', gap: 8, alignContent: 'start' },
+  primaryActionWrap: { display: 'flex', justifyContent: 'flex-start', marginTop: 4 },
+};
 
 function resolveTone(status, tone) {
-  if (tone) return tone;
-  if (['已通过', '已完成', '可推进'].includes(status)) return 'success';
-  if (['待检查', '检查中', '待补资料', '待确认'].includes(status)) return 'warning';
-  if (['已阻塞', '已驳回', '不允许下一步'].includes(status)) return 'danger';
-  return undefined;
+  if (tone) return toneMap[tone] || tone;
+  if (['已通过', '已完成', '可推进', '正常'].includes(status)) return 'success';
+  if (['执行中', '检查中'].includes(status)) return 'processing';
+  if (['待检查', '待补资料', '待确认', '待授权'].includes(status)) return 'warning';
+  if (['已阻塞', '已驳回', '已逾期', '不允许下一步'].includes(status)) return 'error';
+  return 'default';
 }
 
-function ActionCard({ action, onOpen }) {
+function statusTag(status, tone) {
+  const resolvedTone = resolveTone(status, tone);
+  return <Tag color={resolvedTone === 'default' ? undefined : resolvedTone}>{status}</Tag>;
+}
+
+function compactText(text, rows = 2) {
   return (
-    <button
-      className={`action-card action-card--clickable launch-action-card${action.disabled ? ' launch-action-card--disabled' : ''}`}
-      type="button"
-      aria-disabled={action.disabled ? 'true' : undefined}
-      onClick={() => onOpen(action)}
-    >
-      <div className="action-card__top">
-        <div>
-          <span>{action.title}</span>
-          <strong>{action.owner}</strong>
-        </div>
-        <StatusBadge status={action.status} tone={resolveTone(action.status)} />
-      </div>
-      <p>{action.description}</p>
-      <div className="action-card__next">
-        <span>动作边界</span>
-        <p>{action.detail}</p>
-      </div>
-      <div className="action-card__footer">
-        <span>{action.due}</span>
-        <strong>{action.actionLabel}</strong>
-      </div>
-    </button>
+    <Paragraph ellipsis={{ rows, tooltip: text }} style={{ margin: 0 }}>
+      {text}
+    </Paragraph>
   );
+}
+
+function getGapText(check) {
+  if (check.completed) return '暂无关键缺口';
+  return check.evidence || check.nextAction;
 }
 
 export default function LaunchChecklist({ page, onNavigate }) {
-  const { blockers, checks, conclusion, customer, nextActions, statusLegend, summaryCards } = launchChecklistDetail;
-  const [selectedCheckId, setSelectedCheckId] = useState(blockers[0]?.checkId || checks[0].id);
-  const [selectedAction, setSelectedAction] = useState(null);
+  const { checks, conclusion, customer } = launchChecklistDetail;
+  const [selectedCheckId, setSelectedCheckId] = useState(null);
+  const selectedCheck = checks.find((check) => check.id === selectedCheckId);
 
-  const completedChecks = useMemo(() => checks.filter((check) => check.completed), [checks]);
-  const incompleteChecks = useMemo(() => checks.filter((check) => !check.completed), [checks]);
-  const blockingChecks = useMemo(() => checks.filter((check) => check.blocksLaunch), [checks]);
-  const selectedCheck = checks.find((check) => check.id === selectedCheckId) || checks[0];
+  const summaryMetrics = [
+    {
+      title: '已完成',
+      value: `${conclusion.completedCount} / ${conclusion.totalCount}`,
+      status: '已通过',
+      tone: 'success',
+      meta: '店铺、账号、承接链路和归因准备已具备基础。',
+    },
+    {
+      title: '未完成',
+      value: `${conclusion.incompleteCount} 项`,
+      status: '待补资料',
+      tone: 'warning',
+      meta: '集中在广告账户、广告授权和 Business Center 权限。',
+    },
+    {
+      title: '阻塞',
+      value: `${conclusion.blockingCount} 项`,
+      status: '已阻塞',
+      tone: 'danger',
+      meta: '这些缺口会影响测试广告组配置和素材投放。',
+    },
+  ];
 
-  const openAction = (action) => {
-    if (action.disabled) {
-      setSelectedAction(action);
-      return;
-    }
+  const primaryAction = conclusion.allowNextStep
+    ? {
+        label: '进入账户与扣款授权',
+        target: 'payment-authorization',
+        icon: <ArrowRightOutlined />,
+      }
+    : {
+        label: '返回客户准入',
+        target: 'customer-admission',
+        icon: <ArrowLeftOutlined />,
+      };
 
-    if (action.target && onNavigate) {
-      onNavigate(action.target);
-      return;
-    }
-
-    setSelectedAction(action);
-  };
-
-  const selectCheck = (checkId) => {
-    setSelectedCheckId(checkId);
-    setSelectedAction(null);
-  };
+  const columns = [
+    {
+      title: '检查项',
+      dataIndex: 'title',
+      width: 260,
+      render: (_, check) => (
+        <Space direction="vertical" size={4} style={rhythm.tableCellStack}>
+          <Text strong>{check.title}</Text>
+          <Text type="secondary">{check.group} / {check.owner}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: '当前状态',
+      dataIndex: 'status',
+      width: 132,
+      render: (_, check) => statusTag(check.status, check.tone),
+    },
+    {
+      title: '是否阻塞',
+      dataIndex: 'blocksLaunch',
+      width: 132,
+      render: (blocksLaunch) => statusTag(blocksLaunch ? '阻塞' : '不阻塞', blocksLaunch ? 'danger' : 'success'),
+    },
+    {
+      title: '缺口说明',
+      dataIndex: 'evidence',
+      render: (_, check) => compactText(getGapText(check), 2),
+    },
+  ];
 
   return (
-    <section className="page launch-page">
-      <header className="page-header">
-        <div>
-          <div className="eyebrow">{page.phase}</div>
-          <h1>{page.title}</h1>
-          <p>{page.objective}</p>
-        </div>
-        <div className="page-header__badges">
-          <StatusBadge status={page.priority} tone="accent" />
-          <StatusBadge status="项目启动清单" tone="accent" />
-          <StatusBadge status={conclusion.status} tone={resolveTone(conclusion.status)} />
-          <StatusBadge status={conclusion.allowNextStep ? '允许下一步' : '不允许下一步'} tone={conclusion.allowNextStep ? 'success' : 'danger'} />
-        </div>
-      </header>
+    <section className="page launch-page" style={rhythm.page}>
+      <Card style={rhythm.headerCard} styles={{ body: rhythm.cardBody }}>
+        <Space direction="vertical" size={8}>
+          <Text type="secondary">客户准入 / {page.phase}</Text>
+          <Title level={2} style={{ margin: 0 }}>
+            {page.title}
+          </Title>
+          <Paragraph type="secondary" style={{ maxWidth: 780, margin: 0 }}>
+            {page.objective}
+          </Paragraph>
+          <Space size={[8, 8]} wrap>
+            <Tag color="processing">{page.priority}</Tag>
+            <Tag color="processing">流程子页</Tag>
+            {statusTag(conclusion.status)}
+            <Tag>当前对象：{customer.name}</Tag>
+          </Space>
+        </Space>
+      </Card>
 
-      <article className="central-hero launch-hero">
-        <div className="workorder-hero__main">
-          <div className="command-kicker">
-            <div className="eyebrow">客户启动前置检查</div>
-            <StatusBadge status={customer.source} tone="accent" />
-          </div>
-          <h2>{customer.name}</h2>
-          <p>{conclusion.summary}</p>
-          <div className="launch-scope-note">本页只承接项目启动前的业务清单判断，不做真实提交、复杂表单或工单流转。</div>
-          <div className="hero-facts">
-            <DetailMetric label="品类 / 市场" value={customer.categoryMarket} />
-            <DetailMetric label="目标启动日" value={customer.requestedStart} />
-            <DetailMetric label="服务目标" value={customer.serviceGoal} />
-            <DetailMetric label="负责人" value={customer.owner} />
-          </div>
-        </div>
-
-        <div className="workorder-hero__side launch-hero__side">
-          <StatusBadge status={conclusion.allowNextStepText} tone={conclusion.allowNextStep ? 'success' : 'danger'} />
-          <strong>{conclusion.allowNextStep ? '允许继续' : '不能继续'}</strong>
-          <span>{conclusion.riskTip}</span>
-          <div className="drawer-block drawer-block--next launch-hero__next">
-            <span>建议动作</span>
-            <p>{conclusion.nextStepLabel}</p>
-          </div>
-        </div>
-      </article>
-
-      <section className="section-grid section-grid--four launch-summary-grid" aria-label="启动前检查摘要">
-        {summaryCards.map((card) => (
-          <SummaryCard key={card.title} {...card} />
-        ))}
-      </section>
-
-      <section className="workorder-section">
-        <SectionHeading
-          eyebrow="状态含义"
-          title="检查结论只保留启动所需的五类状态"
-          action={<StatusBadge status={`${conclusion.completedCount}/${conclusion.totalCount} 已完成`} tone="accent" />}
-        />
-        <div className="launch-status-strip">
-          {statusLegend.map((item) => (
-            <article className="launch-status-card" key={item.status}>
-              <StatusBadge status={item.status} tone={item.tone} />
-              <p>{item.description}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="workorder-section">
-        <SectionHeading
-          eyebrow="检查项列表"
-          title="完成、未完成和阻塞项一屏看清"
-          action={<StatusBadge status={`${blockingChecks.length} 项阻塞`} tone="danger" />}
-        />
-        <div className="launch-check-layout">
-          <div className="launch-check-table" role="table" aria-label="启动前检查项">
-            <div className="launch-check-row launch-check-row--head" role="row">
-              <span>检查事项</span>
-              <span>状态</span>
-              <span>完成情况</span>
-              <span>是否阻塞</span>
-              <span>业务影响</span>
-            </div>
-
-            {checks.map((check) => {
-              const isSelected = check.id === selectedCheck.id;
-              return (
-                <button
-                  className={`launch-check-row launch-check-row--button${check.completed ? ' launch-check-row--done' : ''}${
-                    check.blocksLaunch ? ' launch-check-row--blocked' : ''
-                  }${isSelected ? ' launch-check-row--selected' : ''}`}
-                  type="button"
-                  role="row"
-                  aria-pressed={isSelected}
-                  key={check.id}
-                  onClick={() => selectCheck(check.id)}
-                >
-                  <span className="launch-check-row__main">
-                    <strong>{check.title}</strong>
-                    <small>{check.group} / {check.owner}</small>
-                  </span>
-                  <span>
-                    <StatusBadge status={check.status} tone={resolveTone(check.status, check.tone)} />
-                  </span>
-                  <span>
-                    <StatusBadge status={check.completed ? '已完成' : '未完成'} tone={check.completed ? 'success' : 'warning'} />
-                  </span>
-                  <span>
-                    <StatusBadge status={check.blocksLaunch ? '阻塞继续' : '不阻塞'} tone={check.blocksLaunch ? 'danger' : 'success'} />
-                  </span>
-                  <span className="launch-check-row__impact">{check.impact}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <aside className="workorder-panel launch-detail-panel" aria-label="当前检查项说明">
-            <div className="workorder-panel__header">
+      <Row gutter={[16, 16]} align="stretch">
+        <Col xs={24} xl={16}>
+          <Card title="总体结论" extra={statusTag(conclusion.status)} style={rhythm.decisionCard} styles={{ body: rhythm.cardBody }}>
+            <Space direction="vertical" size={14} style={{ width: '100%' }}>
               <div>
-                <h3>{selectedCheck.title}</h3>
-                <p>{selectedCheck.description}</p>
+                <Text type="secondary">启动判断</Text>
+                <Title level={3} style={{ margin: '4px 0 0' }}>
+                  {conclusion.nextStepLabel}
+                </Title>
               </div>
-              <StatusBadge status={selectedCheck.status} tone={resolveTone(selectedCheck.status, selectedCheck.tone)} />
-            </div>
-            <div className="drawer-block">
-              <span>当前依据</span>
-              <p>{selectedCheck.evidence}</p>
-            </div>
-            <div className={`drawer-block ${selectedCheck.blocksLaunch ? 'launch-detail-panel__blocked' : 'drawer-block--next'}`}>
-              <span>对启动的影响</span>
-              <p>{selectedCheck.impact}</p>
-            </div>
-            <div className="drawer-block drawer-block--next">
-              <span>当前建议动作</span>
-              <p>{selectedCheck.nextAction}</p>
-            </div>
-            <div className="launch-detail-meta">
-              <span>{selectedCheck.owner}</span>
-              <strong>{selectedCheck.lastUpdate}</strong>
-            </div>
-          </aside>
-        </div>
-      </section>
-
-      <section className="launch-result-grid">
-        <article className="workorder-panel">
-          <div className="workorder-panel__header">
-            <div>
-              <h3>已完成事项</h3>
-              <p>这些事项已经具备启动基础，不阻塞本轮继续判断。</p>
-            </div>
-            <StatusBadge status={`${completedChecks.length} 项`} tone="success" />
-          </div>
-          <div className="launch-mini-list">
-            {completedChecks.map((check) => (
-              <button key={check.id} className="launch-mini-item" type="button" onClick={() => selectCheck(check.id)}>
-                <span>
-                  <strong>{check.title}</strong>
-                  <small>{check.nextAction}</small>
-                </span>
-                <StatusBadge status={check.status} tone="success" />
-              </button>
-            ))}
-          </div>
-        </article>
-
-        <article className="workorder-panel launch-panel-risk">
-          <div className="workorder-panel__header">
-            <div>
-              <h3>未完成事项</h3>
-              <p>未完成不等于全部阻塞，但当前 3 项都会影响正式启动。</p>
-            </div>
-            <StatusBadge status={`${incompleteChecks.length} 项`} tone="warning" />
-          </div>
-          <div className="launch-mini-list">
-            {incompleteChecks.map((check) => (
-              <button key={check.id} className="launch-mini-item launch-mini-item--risk" type="button" onClick={() => selectCheck(check.id)}>
-                <span>
-                  <strong>{check.title}</strong>
-                  <small>{check.impact}</small>
-                </span>
-                <StatusBadge status={check.blocksLaunch ? '阻塞继续' : check.status} tone={check.blocksLaunch ? 'danger' : resolveTone(check.status)} />
-              </button>
-            ))}
-          </div>
-        </article>
-      </section>
-
-      <section className="workorder-section">
-        <SectionHeading eyebrow="阻塞原因区" title="哪些未完成会卡住继续推进" action={<StatusBadge status="没准备好就不能往下走" tone="danger" />} />
-        <div className="launch-blocker-grid">
-          {blockers.map((blocker) => (
-            <button key={blocker.title} className="workorder-panel launch-blocker-card" type="button" onClick={() => selectCheck(blocker.checkId)}>
-              <div className="workorder-panel__header">
-                <div>
-                  <h3>{blocker.title}</h3>
-                  <p>{blocker.impact}</p>
-                </div>
-                <StatusBadge status={blocker.status} tone={resolveTone(blocker.status)} />
+              <Paragraph style={{ margin: 0 }}>{conclusion.summary}</Paragraph>
+              <Text type="secondary">{conclusion.riskTip}</Text>
+              <div style={rhythm.primaryActionWrap}>
+                <Button type="primary" icon={primaryAction.icon} onClick={() => onNavigate?.(primaryAction.target)}>
+                  {primaryAction.label}
+                </Button>
               </div>
-              <div className="drawer-block launch-detail-panel__blocked">
-                <span>当前建议动作</span>
-                <p>{blocker.suggestion}</p>
+            </Space>
+          </Card>
+        </Col>
+
+        <Col xs={24} xl={8}>
+          <Card title="当前客户" style={rhythm.customerCard} styles={{ body: rhythm.cardBody }}>
+            <Descriptions
+              size="small"
+              column={1}
+              items={[
+                { key: 'name', label: '客户', children: customer.name },
+                { key: 'source', label: '来源', children: customer.source },
+                { key: 'category', label: '品类 / 市场', children: customer.categoryMarket },
+                { key: 'start', label: '目标启动日', children: customer.requestedStart },
+                { key: 'goal', label: '服务目标', children: customer.serviceGoal },
+                { key: 'owner', label: '负责人', children: customer.owner },
+              ]}
+            />
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={[16, 16]} style={{ alignItems: 'stretch' }}>
+        {summaryMetrics.map((metric) => (
+          <Col xs={24} md={8} key={metric.title} style={{ display: 'flex' }}>
+            <Card style={rhythm.metricCard} styles={{ body: rhythm.metricBody }}>
+              <div style={rhythm.metricTop}>
+                <Text type="secondary">{metric.title}</Text>
+                {statusTag(metric.status, metric.tone)}
               </div>
-            </button>
-          ))}
-        </div>
-      </section>
+              <Statistic value={metric.value} valueStyle={{ fontSize: 28, lineHeight: 1.2 }} />
+              <Paragraph type="secondary" ellipsis={{ rows: 2, tooltip: metric.meta }} style={rhythm.metricMeta}>
+                {metric.meta}
+              </Paragraph>
+            </Card>
+          </Col>
+        ))}
+      </Row>
 
-      <section className="workorder-section">
-        <SectionHeading eyebrow="下一步动作区" title="先补齐启动条件，再进入后续页面" action={<StatusBadge status="不做真实提交" tone="accent" />} />
-        <div className="action-grid launch-action-grid">
-          {nextActions.map((action) => (
-            <ActionCard key={action.title} action={action} onOpen={openAction} />
-          ))}
-        </div>
-      </section>
+      <Card
+        title="分项明细"
+        extra={<Text type="secondary">选择检查项查看详细说明</Text>}
+        styles={{ body: { padding: 0 } }}
+      >
+        <Table
+          rowKey="id"
+          size="middle"
+          columns={columns}
+          dataSource={checks}
+          pagination={false}
+          scroll={{ x: 820 }}
+          tableLayout="fixed"
+          rowClassName={(check) => (check.id === selectedCheckId ? 'ant-table-row-selected' : '')}
+          onRow={(check) => ({
+            onClick: () => setSelectedCheckId(check.id),
+            style: {
+              cursor: 'pointer',
+              background: check.id === selectedCheckId ? '#fff7ed' : undefined,
+            },
+          })}
+        />
+      </Card>
 
-      {selectedAction ? (
-        <article className="customer-admission-action-note launch-action-note">
-          <div>
-            <span>当前动作说明</span>
-            <strong>{selectedAction.title}</strong>
-            <p>{selectedAction.detail}</p>
-          </div>
-          <StatusBadge status={selectedAction.status} tone={resolveTone(selectedAction.status)} />
-        </article>
+      {selectedCheck ? (
+        <Card title={`详细说明：${selectedCheck.title}`} extra={statusTag(selectedCheck.status, selectedCheck.tone)}>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={8}>
+              <Card size="small" title="当前依据" style={rhythm.detailCard} styles={{ body: rhythm.detailBody }}>
+                {compactText(selectedCheck.evidence, 4)}
+              </Card>
+            </Col>
+            <Col xs={24} lg={8}>
+              <Card size="small" title="对启动的影响" style={rhythm.detailCard} styles={{ body: rhythm.detailBody }}>
+                {compactText(selectedCheck.impact, 4)}
+              </Card>
+            </Col>
+            <Col xs={24} lg={8}>
+              <Card size="small" title="处理建议" style={rhythm.detailCard} styles={{ body: rhythm.detailBody }}>
+                {compactText(selectedCheck.nextAction, 4)}
+              </Card>
+            </Col>
+          </Row>
+        </Card>
       ) : null}
     </section>
   );
