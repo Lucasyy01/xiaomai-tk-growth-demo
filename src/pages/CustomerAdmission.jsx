@@ -77,7 +77,7 @@ function getRiskAlertType(customer, gaps) {
 }
 
 function getRiskMessage(customer, gaps) {
-  if (customer.status === '可推进' && gaps.length === 0) return '当前可进入启动前检查';
+  if (customer.status === '可推进' && gaps.length === 0) return '当前可进入启动准备';
   if (customer.status === '待观察') return '当前建议保留观察';
   return `当前仍有 ${gaps.length || 1} 项缺口需要处理`;
 }
@@ -85,16 +85,16 @@ function getRiskMessage(customer, gaps) {
 function getPrimaryActionMeta(customer) {
   if (customer.status === '可推进') {
     return {
-      reason: '当前客户已达到准入线，主动作是进入启动前检查，核对店铺、广告资产、归因和授权准备。',
-      buttonText: customer.nextAction,
+      reason: '当前客户已达到准入线，主动作是进入启动准备，统一核对启动前检查、账户与扣款、授信审批。',
+      buttonText: '进入启动准备',
       disabled: false,
     };
   }
 
   if (customer.status === '待授信') {
     return {
-      reason: '当前客户还不适合直接启动检查，先补齐授权、账户和预算边界，再回到准入判断。',
-      buttonText: customer.nextAction,
+      reason: '当前客户需要先在启动准备中补齐授权、账户和预算边界，再统一判断是否进入项目工单。',
+      buttonText: '进入启动准备',
       disabled: false,
     };
   }
@@ -108,8 +108,8 @@ function getPrimaryActionMeta(customer) {
   }
 
   return {
-    reason: '当前还缺少足够判断依据，先补充评估信息，再决定是否进入启动或授信链路。',
-    buttonText: customer.nextAction,
+    reason: '当前还缺少足够判断依据，先进入启动准备查看前置缺口，再决定是否继续推进。',
+    buttonText: '进入启动准备',
     disabled: !customer.target,
   };
 }
@@ -154,8 +154,8 @@ export default function CustomerAdmission({ page, onNavigate }) {
   };
 
   const openCustomerNextAction = (customer = selectedCustomer) => {
-    if (customer?.target && onNavigate) {
-      onNavigate(customer.target);
+    if (customer && !getPrimaryActionMeta(customer).disabled && onNavigate) {
+      onNavigate('startup-preparation');
     }
   };
 

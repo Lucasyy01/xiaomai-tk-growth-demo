@@ -9,9 +9,11 @@ import CustomerPortal from './pages/CustomerPortal.jsx';
 import LaunchChecklist from './pages/LaunchChecklist.jsx';
 import PaymentAuthorization from './pages/PaymentAuthorization.jsx';
 import ProjectWorkorder from './pages/ProjectWorkorder.jsx';
+import StartupPreparation from './pages/StartupPreparation.jsx';
 
 const pageComponentMap = {
   'customer-admission': CustomerAdmission,
+  'startup-preparation': StartupPreparation,
   'launch-checklist': LaunchChecklist,
   'payment-authorization': PaymentAuthorization,
   'credit-approval': CreditApproval,
