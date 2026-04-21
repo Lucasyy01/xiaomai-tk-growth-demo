@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
+import { Alert, Button, Card, Col, Descriptions, Drawer, Row, Space, Steps, Table, Tooltip, Typography } from 'antd';
+import { ArrowLeftOutlined, EyeOutlined, FlagOutlined } from '@ant-design/icons';
 import StatusBadge from '../components/StatusBadge.jsx';
-import SummaryCard from '../components/SummaryCard.jsx';
 import {
   assetSummary,
   billingSummary,
@@ -10,428 +11,495 @@ import {
   projectSnapshot,
   spendSummary,
   workorderCommandCenter,
-  workorderBlockers,
-  workorderLogs,
   workorderOverview,
   workorderRisks,
 } from '../data/mockData.js';
 
+const { Paragraph, Text, Title } = Typography;
+
 const riskTaskStatuses = ['已超时', '已阻塞'];
 
-function DetailMetric({ label, value }) {
-  return (
-    <div className="detail-metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
+function findMetric(metrics, label) {
+  return metrics.find((metric) => metric.label === label)?.value || '-';
 }
 
-function ActionCard({ action, onNavigate }) {
-  const canNavigate = Boolean(action.target);
-  const Component = canNavigate ? 'button' : 'article';
-
-  return (
-    <Component
-      className={`action-card${canNavigate ? ' action-card--clickable' : ''}`}
-      type={canNavigate ? 'button' : undefined}
-      onClick={canNavigate ? () => onNavigate(action.target) : undefined}
-    >
-      <div className="action-card__top">
-        <div>
-          <span>{action.title}</span>
-          <strong>{action.value}</strong>
-        </div>
-        <StatusBadge status={action.status} />
-      </div>
-      <p>{action.meta}</p>
-      <div className="action-card__next">
-        <span>下一步</span>
-        <p>{action.nextStep}</p>
-      </div>
-      <div className="action-card__footer">
-        <span>{action.owner}</span>
-        <span>{action.due}</span>
-        {action.actionLabel ? <strong>{action.actionLabel}</strong> : null}
-      </div>
-    </Component>
-  );
-}
-
-function SectionHeading({ eyebrow, title, action }) {
+function SectionHeading({ eyebrow, title, description, action }) {
   return (
     <div className="section-heading">
       <div>
         {eyebrow ? <div className="eyebrow">{eyebrow}</div> : null}
         <h2>{title}</h2>
+        {description ? (
+          <p style={{ margin: '4px 0 0', maxWidth: 720, color: '#64748b' }}>
+            {description}
+          </p>
+        ) : null}
       </div>
       {action}
     </div>
   );
 }
 
-function WorkorderPanel({ title, description, status, actionLabel, onClick, children }) {
-  const Component = onClick ? 'button' : 'article';
-
+function Field({ label, value }) {
   return (
-    <Component className={`workorder-panel${onClick ? ' workorder-panel--link' : ''}`} type={onClick ? 'button' : undefined} onClick={onClick}>
-      <div className="workorder-panel__header">
-        <div>
-          <h3>{title}</h3>
-          {description ? <p>{description}</p> : null}
-        </div>
-        <div className="workorder-panel__actions">
-          {status ? <StatusBadge status={status} /> : null}
-          {actionLabel ? <span>{actionLabel}</span> : null}
-        </div>
-      </div>
-      {children}
-    </Component>
+    <Space direction="vertical" size={2}>
+      <Text type="secondary">{label}</Text>
+      <Text strong>{value}</Text>
+    </Space>
   );
 }
 
-function TaskDrawer({ task, onClose }) {
-  if (!task) return null;
-
+function EllipsisText({ value, width = 260 }) {
   return (
-    <div className="task-drawer-backdrop" onClick={onClose}>
-      <aside className="task-drawer" aria-label="任务详情" onClick={(event) => event.stopPropagation()}>
-        <div className="task-drawer__header">
-          <div>
-            <span>执行任务详情</span>
-            <h3>{task.type}</h3>
-          </div>
-          <button className="icon-button" type="button" aria-label="关闭任务详情" onClick={onClose}>
-            ×
-          </button>
-        </div>
+    <Tooltip title={value}>
+      <Text ellipsis style={{ display: 'block', maxWidth: width }}>
+        {value}
+      </Text>
+    </Tooltip>
+  );
+}
 
-        <div className="task-drawer__status">
-          <StatusBadge status={task.status} />
-          <StatusBadge status={task.priority} tone={task.priority === 'P0' ? 'danger' : 'accent'} />
-          <span>{task.risk}</span>
+function ConstraintCard({ title, status, tone, conclusion, metrics, note }) {
+  return (
+    <Card style={{ height: '100%', width: '100%' }} styles={{ body: { padding: 20 } }}>
+      <div
+        style={{
+          minHeight: 250,
+          display: 'grid',
+          gridTemplateRows: '32px 52px 78px 44px',
+          rowGap: 14,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <Text strong>{title}</Text>
+          <StatusBadge status={status} tone={tone} />
         </div>
-
-        <dl className="task-drawer__meta">
-          <div>
-            <dt>负责人</dt>
-            <dd>{task.owner}</dd>
-          </div>
-          <div>
-            <dt>截止时间</dt>
-            <dd>{task.deadline}</dd>
-          </div>
-          <div>
-            <dt>最近更新</dt>
-            <dd>{task.lastUpdate}</dd>
-          </div>
-          <div>
-            <dt>依赖项</dt>
-            <dd>{task.dependency}</dd>
-          </div>
-        </dl>
-
-        <div className="drawer-block">
-          <span>当前进展</span>
-          <p>{task.detail}</p>
+        <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+          <Text
+            strong
+            style={{
+              fontSize: 16,
+              lineHeight: '24px',
+              display: '-webkit-box',
+              overflow: 'hidden',
+              WebkitBoxOrient: 'vertical',
+              WebkitLineClamp: 2,
+            }}
+          >
+            {conclusion}
+          </Text>
         </div>
-        <div className="drawer-block drawer-block--next">
-          <span>下一步动作</span>
-          <p>{task.nextStep}</p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+          {metrics.map((metric) => (
+            <div
+              key={metric.label}
+              style={{
+                minWidth: 0,
+                border: '1px solid #f1f5f9',
+                borderRadius: 8,
+                background: '#f8fafc',
+                padding: '10px 12px',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                gap: 4,
+              }}
+            >
+              <Text type="secondary">{metric.label}</Text>
+              <Text strong style={{ fontSize: 16, lineHeight: '22px' }}>
+                {metric.value}
+              </Text>
+            </div>
+          ))}
         </div>
-      </aside>
-    </div>
+        <Text
+          type="secondary"
+          style={{
+            alignSelf: 'start',
+            display: '-webkit-box',
+            overflow: 'hidden',
+            WebkitBoxOrient: 'vertical',
+            WebkitLineClamp: 2,
+          }}
+        >
+          {note}
+        </Text>
+      </div>
+    </Card>
   );
 }
 
 export default function ProjectWorkorder({ page, onNavigate }) {
-  const [selectedStage, setSelectedStage] = useState(projectSnapshot.currentStage);
   const [selectedTask, setSelectedTask] = useState(null);
 
-  const selectedStageDetail = useMemo(() => {
-    return phaseDetails.find((phase) => phase.stage === selectedStage) || phaseDetails.find((phase) => phase.stage === projectSnapshot.currentStage);
-  }, [selectedStage]);
-
   const currentStageIndex = phaseDetails.findIndex((phase) => phase.stage === projectSnapshot.currentStage);
-  const riskTaskCount = executionTasks.filter((task) => riskTaskStatuses.includes(task.status)).length;
+  const safeCurrentStageIndex = currentStageIndex >= 0 ? currentStageIndex : 0;
+
+  const sortedTasks = useMemo(() => {
+    return [...executionTasks].sort((left, right) => {
+      const leftRisk = riskTaskStatuses.includes(left.status) ? 0 : 1;
+      const rightRisk = riskTaskStatuses.includes(right.status) ? 0 : 1;
+      if (leftRisk !== rightRisk) return leftRisk - rightRisk;
+      if (left.priority !== right.priority) return left.priority === 'P0' ? -1 : 1;
+      return left.deadline.localeCompare(right.deadline);
+    });
+  }, []);
+
+  const riskTasks = executionTasks.filter((task) => riskTaskStatuses.includes(task.status));
   const primaryAction = workorderCommandCenter.primaryAction;
+  const mainRisk = workorderRisks[0];
+
+  const stageItems = phaseDetails.map((phase, index) => ({
+    title: phase.stage,
+    status: index < safeCurrentStageIndex ? 'finish' : index === safeCurrentStageIndex ? 'process' : 'wait',
+  }));
+
+  const contentSteps = [
+    {
+      title: '达人合作',
+      status: 'process',
+      description: `${findMetric(creatorSummary.metrics, '待交付数')} 待交付`,
+    },
+    {
+      title: '素材产出',
+      status: 'finish',
+      description: `${findMetric(assetSummary.metrics, '已通过数')} 已通过`,
+    },
+    {
+      title: '授权确认',
+      status: 'error',
+      description: '当前卡点',
+    },
+    {
+      title: '小预算测试',
+      status: 'wait',
+      description: `${findMetric(assetSummary.metrics, '待测试数')} 待测试`,
+    },
+    {
+      title: '放量判断',
+      status: 'wait',
+      description: `${findMetric(assetSummary.metrics, '放量中数')} 放量中`,
+    },
+  ];
+
+  const taskColumns = [
+    {
+      title: '任务',
+      dataIndex: 'type',
+      key: 'type',
+      width: 140,
+      fixed: 'left',
+      render: (value, task) => (
+        <Space direction="vertical" size={2}>
+          <Text strong>{value}</Text>
+          <Text type={riskTaskStatuses.includes(task.status) ? 'danger' : 'secondary'}>{task.risk}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: 110,
+      render: (status) => <StatusBadge status={status} tone={riskTaskStatuses.includes(status) ? 'danger' : undefined} />,
+    },
+    {
+      title: '优先级',
+      dataIndex: 'priority',
+      key: 'priority',
+      width: 90,
+      render: (priority) => <StatusBadge status={priority} tone={priority === 'P0' ? 'danger' : 'accent'} />,
+    },
+    {
+      title: '负责人',
+      dataIndex: 'owner',
+      key: 'owner',
+      width: 120,
+    },
+    {
+      title: '截止时间',
+      dataIndex: 'deadline',
+      key: 'deadline',
+      width: 120,
+    },
+    {
+      title: '依赖项',
+      dataIndex: 'dependency',
+      key: 'dependency',
+      width: 240,
+      render: (value) => <EllipsisText value={value} width={220} />,
+    },
+    {
+      title: '下一步动作',
+      dataIndex: 'nextStep',
+      key: 'nextStep',
+      render: (value) => <EllipsisText value={value} width={320} />,
+    },
+  ];
 
   return (
     <section className="page workorder-page">
-      <header className="page-header">
+      <header className="page-header" style={{ paddingBottom: 16 }}>
         <div>
           <div className="eyebrow">{page.phase}</div>
-          <h1>{page.title}</h1>
-          <p>{page.objective}</p>
+          <h1 style={{ marginBottom: 6 }}>{page.title}</h1>
+          <p style={{ marginBottom: 10 }}>{projectSnapshot.projectName}</p>
+          <Space wrap size={[8, 8]}>
+            <StatusBadge status={projectSnapshot.currentStage} tone="accent" />
+            <StatusBadge status={projectSnapshot.healthStatus} tone="warning" />
+            <StatusBadge status={`负责人：${projectSnapshot.owner}`} tone="neutral" />
+            <StatusBadge status={`客户：${projectSnapshot.clientName}`} tone="neutral" />
+          </Space>
         </div>
-        <div className="page-header__badges">
-          <StatusBadge status={page.priority} tone="accent" />
-          <StatusBadge status="中枢页" tone="accent" />
-          <StatusBadge status={page.status} />
-        </div>
+        <Space wrap className="page-header__badges" style={{ alignSelf: 'center' }}>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => onNavigate('startup-preparation')}>
+            返回启动准备
+          </Button>
+          <Button icon={<EyeOutlined />} type="text" onClick={() => onNavigate('customer-portal')}>
+            客户视角预览
+          </Button>
+          <Button type="primary" icon={<FlagOutlined />} onClick={() => onNavigate('creator-assets')}>
+            推进授权并开测
+          </Button>
+        </Space>
       </header>
 
-      <article className="central-hero workorder-hero workorder-command">
-        <div className="workorder-hero__main">
-          <div className="command-kicker">
-            <div className="eyebrow">项目总览 / 交付中枢</div>
-            <StatusBadge status={projectSnapshot.healthStatus} tone="warning" />
-          </div>
-          <h2>{projectSnapshot.projectName}</h2>
-          <p>{projectSnapshot.commandFocus}</p>
-          <div className="primary-next-action">
-            <div>
-              <span>{primaryAction.title}</span>
-              <strong>{primaryAction.value}</strong>
-              <p>{primaryAction.meta}</p>
-            </div>
-            <StatusBadge status={primaryAction.status} />
-          </div>
-          <div className="hero-facts">
-            <DetailMetric label="客户" value={projectSnapshot.clientName} />
-            <DetailMetric label="项目类型" value={projectSnapshot.projectType} />
-            <DetailMetric label="负责人" value={projectSnapshot.owner} />
-            <DetailMetric label="项目周期" value={projectSnapshot.cycle} />
-          </div>
-        </div>
-        <div className="workorder-hero__side">
-          <StatusBadge status={projectSnapshot.currentStage} tone="accent" />
-          <strong>{projectSnapshot.healthStatus}</strong>
-          <span>{projectSnapshot.healthReason}</span>
-          <button className="primary-action" type="button" onClick={() => onNavigate('customer-portal')}>
-            客户视角预览
-          </button>
-        </div>
-      </article>
+      <section className="workorder-section" aria-label="项目总览" style={{ marginTop: 0 }}>
+        <Row gutter={[16, 16]} align="stretch">
+          <Col xs={24} lg={16} style={{ display: 'flex' }}>
+            <Card
+              style={{
+                width: '100%',
+                borderColor: '#bfdbfe',
+                boxShadow: '0 14px 32px rgba(15, 23, 42, 0.08)',
+              }}
+              styles={{ body: { padding: 24 } }}
+            >
+              <Space direction="vertical" size={14} style={{ width: '100%' }}>
+                <Space align="start" style={{ width: '100%', justifyContent: 'space-between', gap: 16 }}>
+                  <Space direction="vertical" size={4}>
+                    <div className="eyebrow">先看这里 / 当前判断</div>
+                    <Title level={2} style={{ margin: 0 }}>
+                      能继续推，但先清素材授权
+                    </Title>
+                    <Text type="secondary">当前不是全面停摆；执行任务可以继续盯，但小预算测试必须等授权确认。</Text>
+                  </Space>
+                  <StatusBadge status={projectSnapshot.healthStatus} tone="warning" />
+                </Space>
 
-      <section className="section-grid section-grid--four command-metric-grid" aria-label="项目中枢核心指标">
-        {workorderCommandCenter.metrics.map((metric) => (
-          <SummaryCard key={metric.title} {...metric} isCentral={metric.status === '已阻塞'} />
-        ))}
+                <Alert
+                  message={`唯一强提醒：${mainRisk.title}`}
+                  description="已通过素材还不能直接投放，先确认广告使用授权周期和投放渠道。"
+                  type="warning"
+                  showIcon
+                  style={{ paddingBlock: 10 }}
+                />
+
+                <Row gutter={[12, 12]}>
+                  <Col xs={12} md={6}>
+                    <Field label="项目状态" value={projectSnapshot.currentStage} />
+                  </Col>
+                  <Col xs={12} md={6}>
+                    <Field label="负责人" value={projectSnapshot.owner} />
+                  </Col>
+                  <Col xs={12} md={6}>
+                    <Field label="最大卡点" value={mainRisk.title} />
+                  </Col>
+                  <Col xs={12} md={6}>
+                    <Field label="最重要动作" value={primaryAction.value} />
+                  </Col>
+                </Row>
+
+                <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, background: '#f8fafc' }}>
+                  <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                    <Text type="secondary">阶段辅助：当前处于 {projectSnapshot.currentStage}，不抢主判断。</Text>
+                    <Steps size="small" current={safeCurrentStageIndex} items={stageItems} />
+                  </Space>
+                </div>
+              </Space>
+            </Card>
+          </Col>
+
+          <Col xs={24} lg={8} style={{ display: 'flex' }}>
+            <Card
+              title="下一步动作"
+              extra={<StatusBadge status={primaryAction.status} tone="warning" />}
+              style={{ width: '100%' }}
+              styles={{ body: { padding: 20 } }}
+            >
+              <div style={{ minHeight: 230, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <Title level={3} style={{ margin: 0 }}>
+                  {primaryAction.value}
+                </Title>
+                <Paragraph style={{ marginBottom: 0 }}>{primaryAction.meta}</Paragraph>
+                <Text type="secondary">动作目的：解除测试前置卡点，让小预算测试具备启动条件。</Text>
+                <div style={{ marginTop: 'auto' }}>
+                  <Text type="secondary">关联页面：达人合作与素材资产</Text>
+                </div>
+              </div>
+            </Card>
+          </Col>
+        </Row>
       </section>
 
-      <section className="workorder-section">
+      <section className="workorder-section" aria-label="执行推进">
         <SectionHeading
-          eyebrow="阶段推进"
-          title="从项目状态看下一步"
-          action={<StatusBadge status={`当前阶段：${projectSnapshot.currentStage}`} tone="accent" />}
+          eyebrow="模块 2 / 执行视角"
+          title="谁在推进什么"
+          description="只看内部执行责任：任务、负责人、状态和下一步；能不能开测不在这里下结论。"
+          action={<StatusBadge status={`${riskTasks.length} 项需盯`} tone={riskTasks.length > 0 ? 'danger' : 'success'} />}
         />
-
-        <article className="stage-strip stage-strip--interactive">
-          {phaseDetails.map((phase, index) => {
-            const isCurrent = phase.stage === projectSnapshot.currentStage;
-            const isSelected = phase.stage === selectedStage;
-            const isPast = currentStageIndex > index;
-
-            return (
-              <button
-                key={phase.stage}
-                className={`stage-node stage-node--button${isCurrent ? ' stage-node--active' : ''}${isSelected ? ' stage-node--selected' : ''}${
-                  isPast ? ' stage-node--past' : ''
-                }`}
-                type="button"
-                aria-pressed={isSelected}
-                onClick={() => setSelectedStage(phase.stage)}
-              >
-                <span className="stage-node__index">{String(index + 1).padStart(2, '0')}</span>
-                <span>{phase.stage}</span>
-                {isCurrent ? <StatusBadge status="当前阶段" tone="accent" /> : null}
-              </button>
-            );
-          })}
-        </article>
-
-        <article className="stage-advice">
-          <div>
-            <span>当前查看阶段</span>
-            <strong>{selectedStageDetail.stage}</strong>
-            <p>{selectedStageDetail.description}</p>
-          </div>
-          <div>
-            <span>进入条件</span>
-            <p>{selectedStageDetail.entryCondition}</p>
-          </div>
-          <div>
-            <span>风险关注</span>
-            <p>{selectedStageDetail.riskFocus}</p>
-          </div>
-          <div className="stage-advice__next">
-            <span>下一步动作建议</span>
-            <p>{selectedStageDetail.nextAction}</p>
-          </div>
-        </article>
-      </section>
-
-      <section className="workorder-section">
-        <SectionHeading eyebrow="动作中枢" title="现在最该处理的 3 件事" />
-        <div className="action-grid">
-          {workorderOverview.nextActions.map((action) => (
-            <ActionCard key={action.title} action={action} onNavigate={onNavigate} />
-          ))}
-        </div>
-      </section>
-
-      <section className="workorder-section">
-        <SectionHeading eyebrow="客户与授信" title="客户、额度和风险摘要" />
-        <div className="section-grid section-grid--four">
-          <SummaryCard title="客户状态" value={workorderOverview.customer.status} status={workorderOverview.customer.status} meta={workorderOverview.customer.name} />
-          <SummaryCard
-            title="授信额度"
-            value={workorderOverview.customer.totalCredit}
-            status={workorderOverview.customer.creditStatus}
-            meta={`已用 ${workorderOverview.customer.usedCredit}，可用 ${workorderOverview.customer.availableCredit}`}
+        <Card styles={{ body: { padding: 0 } }}>
+          <Table
+            rowKey="id"
+            size="small"
+            columns={taskColumns}
+            dataSource={sortedTasks}
+            pagination={false}
+            scroll={{ x: 1120 }}
+            onRow={(task) => ({
+              onClick: () => setSelectedTask(task),
+              style: { cursor: 'pointer' },
+            })}
           />
-          <SummaryCard title="当前占额" value={workorderOverview.customer.creditUsage} status={spendSummary.status} tone="success" meta={spendSummary.limitWarning} />
-          <SummaryCard title="风险状态" value={workorderOverview.customer.riskStatus} status="待授权" meta={`${riskTaskCount} 个关键任务需要关注`} />
-        </div>
+        </Card>
       </section>
 
-      <section className="workorder-section">
+      <section className="workorder-section" aria-label="内容与测试">
         <SectionHeading
-          eyebrow="执行任务"
-          title="关键任务推进"
-          action={<StatusBadge status={`${riskTaskCount} 项风险`} tone={riskTaskCount > 0 ? 'danger' : 'success'} />}
+          eyebrow="模块 3 / 测试准备视角"
+          title="现在能不能开测"
+          description="只看测试前置条件：达人、素材、授权和测试入口；不讨论任务逾期和回款。"
+          action={<StatusBadge status={assetSummary.status} tone="warning" />}
         />
-        <div className="task-list">
-          {executionTasks.map((task) => {
-            const isRiskTask = riskTaskStatuses.includes(task.status);
-
-            return (
-              <button key={task.id} className={`task-card${isRiskTask ? ' task-card--risk' : ''}`} type="button" onClick={() => setSelectedTask(task)}>
-                <div className="task-card__top">
-                  <div>
-                    <span>{task.type} / {task.priority}</span>
-                    <strong>{task.owner}</strong>
-                  </div>
-                  <StatusBadge status={task.status} />
-                </div>
-                <div className="task-card__body">
-                  <span>截止 {task.deadline}</span>
-                  <p>{task.risk}</p>
-                  <small>{task.nextStep}</small>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+        <Card>
+          <Row gutter={[20, 16]} align="stretch">
+            <Col xs={24} lg={16}>
+              <Space direction="vertical" size={12} style={{ width: '100%' }}>
+                <Space wrap style={{ width: '100%', justifyContent: 'space-between' }}>
+                  <Text strong>结论：暂不能开测。素材供给已形成，缺口在广告使用授权。</Text>
+                  <StatusBadge status="待授权" tone="warning" />
+                </Space>
+                <Steps size="small" items={contentSteps} />
+              </Space>
+            </Col>
+            <Col xs={24} lg={8}>
+              <div
+                style={{
+                  height: '100%',
+                  minHeight: 132,
+                  border: '1px solid #f0f0f0',
+                  borderRadius: 8,
+                  padding: 16,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 12,
+                  background: '#fafafa',
+                }}
+              >
+                <Row gutter={[12, 12]}>
+                  <Col span={12}>
+                    <Field label="达人交付" value={creatorSummary.status} />
+                  </Col>
+                  <Col span={12}>
+                    <Field label="授权状态" value={assetSummary.status} />
+                  </Col>
+                  <Col span={12}>
+                    <Field label="测试入口" value="待授权" />
+                  </Col>
+                  <Col span={12}>
+                    <Field label="可放量素材" value={findMetric(assetSummary.metrics, '放量中数')} />
+                  </Col>
+                </Row>
+                <Text type="secondary" style={{ marginTop: 'auto' }}>
+                  {assetSummary.nextAction}
+                </Text>
+              </div>
+            </Col>
+          </Row>
+        </Card>
       </section>
 
-      <section className="workorder-section">
-        <SectionHeading eyebrow="对象摘要" title="达人合作、素材、消耗和账单" />
-        <div className="workorder-summary-grid">
-          <WorkorderPanel
-            title="达人合作摘要"
-            description={creatorSummary.nextAction}
-            status={creatorSummary.status}
-            actionLabel="查看达人与素材"
-            onClick={() => onNavigate('creator-assets')}
-          >
-            <div className="mini-metric-grid mini-metric-grid--four">
-              {creatorSummary.metrics.map((metric) => (
-                <DetailMetric key={metric.label} {...metric} />
-              ))}
-            </div>
-          </WorkorderPanel>
-
-          <WorkorderPanel
-            title="素材资产摘要"
-            description={assetSummary.nextAction}
-            status={assetSummary.status}
-            actionLabel="查看素材明细"
-            onClick={() => onNavigate('creator-assets')}
-          >
-            <div className="mini-metric-grid mini-metric-grid--three">
-              {assetSummary.metrics.map((metric) => (
-                <DetailMetric key={metric.label} {...metric} />
-              ))}
-            </div>
-            <p className="panel-note">{assetSummary.conversionNote}</p>
-            <div className="asset-ladder">
-              {assetSummary.ladder.map((item, index) => (
-                <div className="asset-ladder__step" key={item.label}>
-                  <span>{String(index + 1).padStart(2, '0')}</span>
-                  <strong>{item.label}</strong>
-                  <small>{item.description}</small>
-                </div>
-              ))}
-            </div>
-          </WorkorderPanel>
-
-          <WorkorderPanel title="消耗与占额摘要" description="只展示项目消耗和授信占额，不做复杂图表。" status={spendSummary.status}>
-            <div className="mini-metric-grid mini-metric-grid--four">
-              <DetailMetric label="今日消耗" value={spendSummary.todaySpend} />
-              <DetailMetric label="累计消耗" value={spendSummary.totalSpend} />
-              <DetailMetric label="当前占额" value={spendSummary.creditOccupancy} />
-              <DetailMetric label="额度预警" value={spendSummary.limitWarning} />
-            </div>
-            <div className="quota-rail" style={{ '--usage': spendSummary.usagePercent }}>
-              <span />
-            </div>
-            <p className="panel-note">{spendSummary.forecast}</p>
-          </WorkorderPanel>
-
-          <WorkorderPanel
-            title="账单与回款摘要"
-            description="体现平台应收、已收、待收和自动扣款授权状态。"
-            status={billingSummary.status}
-            actionLabel="查看账单"
-            onClick={() => onNavigate('billing-collection')}
-          >
-            <div className="mini-metric-grid mini-metric-grid--three">
-              <DetailMetric label="应收总额" value={billingSummary.receivable} />
-              <DetailMetric label="已收金额" value={billingSummary.received} />
-              <DetailMetric label="待收金额" value={billingSummary.pending} />
-              <DetailMetric label="最近扣款" value={billingSummary.lastDeduction} />
-              <DetailMetric label="扣款授权" value={billingSummary.autoDebitStatus} />
-            </div>
-            <p className="panel-note">{billingSummary.nextCollectionAction}</p>
-          </WorkorderPanel>
-        </div>
+      <section className="workorder-section" aria-label="风险与约束">
+        <SectionHeading
+          eyebrow="模块 4 / 经营约束视角"
+          title="钱、额度、回款有没有拖后腿"
+          description="只看经营条件是否会拖住项目：授信、占额、回款、扣款授权；不重复执行卡点。"
+          action={<StatusBadge status={workorderOverview.customer.creditStatus} tone="success" />}
+        />
+        <Row gutter={[16, 16]} align="stretch">
+          <Col xs={24} lg={8} style={{ display: 'flex' }}>
+            <ConstraintCard
+              title="授信状态"
+              status={workorderOverview.customer.creditStatus}
+              tone="success"
+              conclusion="授信可用，允许继续推进"
+              metrics={[
+                { label: '授信额度', value: workorderOverview.customer.totalCredit },
+                { label: '可用额度', value: workorderOverview.customer.availableCredit },
+              ]}
+              note="额度足够开测；放量前复核占额。"
+            />
+          </Col>
+          <Col xs={24} lg={8} style={{ display: 'flex' }}>
+            <ConstraintCard
+              title="预算与占额"
+              status={spendSummary.status}
+              tone="success"
+              conclusion="占额压力可控"
+              metrics={[
+                { label: '当前占额', value: workorderOverview.customer.creditUsage },
+                { label: '累计消耗', value: spendSummary.totalSpend },
+              ]}
+              note="当前节奏安全，暂不触发额度预警。"
+            />
+          </Col>
+          <Col xs={24} lg={8} style={{ display: 'flex' }}>
+            <ConstraintCard
+              title="回款与扣款"
+              status={billingSummary.status}
+              tone="warning"
+              conclusion="待收需放量前确认"
+              metrics={[
+                { label: '待收金额', value: billingSummary.pending },
+                { label: '扣款授权', value: billingSummary.autoDebitStatus },
+              ]}
+              note="放量前确认余额与扣款授权。"
+            />
+          </Col>
+        </Row>
       </section>
 
-      <section className="workorder-section">
-        <SectionHeading eyebrow="日志与异常" title="最近更新和当前阻塞项" />
-        <div className="workorder-bottom-grid">
-          <article className="workorder-panel">
-            <h3>最近更新日志</h3>
-            <div className="event-list">
-              {workorderLogs.map((log) => (
-                <div className="event-item" key={`${log.time}-${log.title}`}>
-                  <span>{log.time}</span>
-                  <p>{log.title}</p>
-                  <StatusBadge status={log.status} />
-                </div>
-              ))}
-            </div>
-          </article>
-
-          <article className="workorder-panel workorder-panel--risk">
-            <h3>风险事件</h3>
-            <div className="risk-list">
-              {workorderRisks.map((risk) => (
-                <div className="risk-item" key={risk.title}>
-                  <div>
-                    <strong>{risk.title}</strong>
-                    <p>{risk.description}</p>
-                  </div>
-                  <StatusBadge status={risk.status} />
-                </div>
-              ))}
-            </div>
-          </article>
-
-          <article className="workorder-panel">
-            <h3>当前阻塞项</h3>
-            <ol className="blocker-list">
-              {workorderBlockers.map((blocker) => (
-                <li key={blocker}>{blocker}</li>
-              ))}
-            </ol>
-          </article>
-        </div>
-      </section>
-
-      <TaskDrawer task={selectedTask} onClose={() => setSelectedTask(null)} />
+      <Drawer title="执行任务详情" width={460} open={Boolean(selectedTask)} onClose={() => setSelectedTask(null)}>
+        {selectedTask ? (
+          <Space direction="vertical" size={16} style={{ width: '100%' }}>
+            <Space wrap>
+              <StatusBadge status={selectedTask.status} tone={riskTaskStatuses.includes(selectedTask.status) ? 'danger' : undefined} />
+              <StatusBadge status={selectedTask.priority} tone={selectedTask.priority === 'P0' ? 'danger' : 'accent'} />
+            </Space>
+            <Title level={3} style={{ margin: 0 }}>
+              {selectedTask.type}
+            </Title>
+            <Descriptions
+              column={1}
+              bordered
+              size="small"
+              items={[
+                { key: 'owner', label: '负责人', children: selectedTask.owner },
+                { key: 'deadline', label: '截止时间', children: selectedTask.deadline },
+                { key: 'lastUpdate', label: '最近更新', children: selectedTask.lastUpdate },
+                { key: 'dependency', label: '依赖项', children: selectedTask.dependency },
+              ]}
+            />
+            <Card size="small" title="当前进展">
+              <Paragraph style={{ marginBottom: 0 }}>{selectedTask.detail}</Paragraph>
+            </Card>
+            <Card size="small" title="下一步动作">
+              <Paragraph style={{ marginBottom: 0 }}>{selectedTask.nextStep}</Paragraph>
+            </Card>
+          </Space>
+        ) : null}
+      </Drawer>
     </section>
   );
 }
